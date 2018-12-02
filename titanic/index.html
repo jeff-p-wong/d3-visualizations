@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="http://d3js.org/d3.v3.min.js"></script>
+  <script src="http://dimplejs.org/dist/dimple.v2.0.0.min.js"></script>
+  <script src="http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3.js"></script>
+  <style>
+    *{
+      box-sizing:border-box; 
+    }
+    body {
+      font-family: sans-serif;
+      font-weight: normal;
+      color: #999;
+      background-color: #eee;
+    }
+
+    label {
+      width: 100%;
+      border-radius: 3px;
+      border: 1px solid #D1D3D4
+    }
+    input.radio:empty {
+      /* Removes the radio buttons */
+      margin-left: -9999px; 
+    }
+    text{
+      font: 11px sans-serif;
+      font-weight: normal;   
+    }
+    /* Buttons from http://cssdeck.com/labs/ldmtsmfk */
+    /* style label *//* Buttons from http://cssdeck.com/labs/ldmtsmfk */
+    /* style label */
+    input.radio:empty ~ label {
+      position: relative;
+      float: left;
+      line-height: 1.5em;
+      text-indent: 3.25em;
+      margin-top: 1%;
+      cursor: pointer;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+    input.radio:empty ~ label:before {
+      position: absolute;
+      display: block;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      content: '';
+      width: 2.5em;
+      background: #D1D3D4;
+      border-radius: 3px 0 0 3px;
+    }
+    /* toggle hover */
+    input.radio:hover:not(:checked) ~ label:before {
+      /* This will generate the check mark*/
+      content: '\2714'; 
+      text-indent: .9em;
+      /* Gray colour */
+      color: #C2C2C2; 
+    }
+    /* toggle on */
+    input.radio:checked ~ label:before {
+      content: '\2714';
+      text-indent: .9em;
+      color: #9CE2AE;
+      background-color: #4DCB6D;
+    }
+    input.radio:focus ~ label:before {
+      box-shadow: 0 0 0 3px #999;
+    }
+    h2{
+      text-align: center;
+      margin: 1px;
+    }
+    h4{
+      color: black;
+      margin: 0.1%;
+    }
+    .ContentBox{
+      height: 450px;
+      width: 950px;
+      display: flex; flex-wrap: wrap;
+    }
+    .TextBox{
+      height: 75px;
+      margin-left: 15%;
+      margin-right: 15%;
+    }
+    p{
+     margin-left: 5%
+     margin-right: 5%
+     font: 12px sans-serif;
+     }
+     .PlotBox{
+      width: 85%;
+      height: 100%;
+      display: flex; flex-wrap: wrap;
+    }
+    .SideBox{
+      padding-top: 1%;
+      width: 15%;
+    }
+    .StoryBox{
+      padding-left: 2.5%;
+      padding-right: 2.5%;
+      width: 100%;
+      height: 20%;
+    }
+    .PieBox{
+      width: 50%;
+      height: 70%;
+    }
+    .BarBox{
+      width: 50%;
+      height: 80%;
+    }
+
+    .GenderBox{
+      height: 90px;
+    }
+    .AgeBox{
+      height: 150px;
+    }
+    .PclassBox{
+      height: 125px;
+    }
+    .NextButtonBox{
+      height: 30px;
+    }
+    .axis text {
+      font: 11px sans-serif;
+    }
+    .bar{
+      opacity: 0.45;
+      width: 1;
+    }
+    .bar:hover{
+      opacity: 1;
+      width: 3;
+    }
+    .axis path, .axis line {
+      fill: none;
+      stroke: #000;
+      shape-rendering: crispEdges;
+    }
+
+    /* d3 tip idea came from http://bl.ocks.org/Caged/6476579 */
+    .d3-tip {
+      line-height: 1;
+      font-weight: bold;
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      border-radius: 2px;
+    }
+    /* Creates a small triangle extender for the tooltip */
+    .d3-tip:after {
+      box-sizing: border-box;
+      display: inline;
+      font-size: 10px;
+      width: 100%;
+      line-height: 1;
+      color: rgba(0, 0, 0, 0.8);
+      content: "\25BC";
+      position: absolute;
+      text-align: center;
+    }
+    /* Style northward tooltips differently */
+    .d3-tip.n:after {
+      margin: -1px 0 0 0;
+      top: 100%;
+      left: 0;
+    }
+
+</style>
+<script type="text/javascript">
+  // Global Variable - to keep track of number of clicks
+  var numClicked = 0; 
+
+  function init(data)
+  {
+    // Do not touch
+    "use strict"; 
+    document.getElementById("Story").innerHTML = "In this graphic, you will see how likely someone passed away during the titanic tragedy. \nDepending on their Gender, Age and Class, their chances of survival can change quite dramatically. Please click \"Start\" to learn more."; 
+    
+    // Represents the colours of death (red) and survivals (green) respectively
+    var color = d3
+    .scale
+    .ordinal()
+    .range(['#DC143C', '#ACE1AF']); 
+
+    // Gets the total number of people in the data (removed nulls)
+    var totalNumPeople = d3
+    .nest()
+    .rollup(function(leaves){return leaves.length;})
+    .entries(data);
+
+    var temp_data = [0, totalNumPeople]; 
+    var temp_x = ["Deaths", "Survivals"];
+
+    // Drawing the pie (yummm)
+    var margin_pi = 20;
+    
+    var PieWidth = d3.select("body")
+    .selectAll("div.PieBox")
+    .style("width")
+    .replace('px', '') - margin_pi;
+    
+    var PieHeight = d3.select("body")
+    .selectAll("div.PieBox")
+    .style("height")
+    .replace('px', '') - margin_pi;
+    
+    // Building the SVG for the pie within the Pie Box
+    var svg_pie = d3.select("body")
+    .select(".PieBox") 
+    .append("svg")
+    .attr("width", PieWidth + margin_pi)
+    .attr("height", PieHeight + margin_pi)
+    .append("g")
+    .attr("transform", "translate(" + (margin_pi + (PieWidth / 2)) 
+      + "," + (margin_pi + (PieHeight / 2)) + ")");
+    
+    // Calculating the radius and arc
+    var radius = Math.min(PieWidth,PieHeight) / 2;
+    var arc = d3.svg.arc().outerRadius(radius).innerRadius(0);
+    
+    var pie = d3.layout
+    .pie()
+    .value(function(d) { return d }).sort(null);
+    
+    // Appending pie data to actual pie
+    var arcs = svg_pie
+    .selectAll(".arc")
+    .data(pie(temp_data))
+    .enter()
+    .append("g")
+    .attr("class", "arc");
+    
+    updatePie();
+
+   // Making the bar graphs
+   var margin = {top: 20, right: 30, bottom: 30, left: 40};
+   var BarWidth = d3.select("body")
+   .selectAll("div.BarBox")
+   .style("width")
+   .replace('px', '') - margin.left - margin.right - 20;
+
+   // Getting the bar height
+   var BarHeight = d3.select("body")
+   .selectAll("div.BarBox")
+   .style("height")
+   .replace('px', '') - margin.top - margin.bottom - 20;
+
+   // Getting the bar width
+   var barWidth = (BarWidth / temp_data.length);
+
+   // Making the svg element for the BarBox
+   var svg_bar = d3.select("body").select(".BarBox") 
+   .append("svg")
+   .attr("width", BarWidth + margin.left + margin.right )
+   .attr("height", BarHeight + margin.top + margin.bottom )
+   .append("g")
+   .attr("transform","translate("+margin.left + "," + margin.top + ")");
+
+    // Making the x-axis domain and scales (This will remain unchanged)
+    var x = d3.scale
+    .ordinal()
+    .domain(temp_x)
+    .rangeBands([0, BarWidth], 0.55);
+
+    x.domain(temp_x.map(function(d){return d;})); 
+    
+    var xAxis = d3.svg
+    .axis()
+    .scale(x)
+    .orient("bottom");
+    
+    svg_bar
+    .append("g")
+    .attr("class","x axis")
+    .attr("transform", "translate(0, " + BarHeight + ")")
+    .call(xAxis);
+    
+    // Making the y-axis range and domains (This will change in the updateBar() function)
+    var y = d3.scale
+    .linear()
+    .range([BarHeight, 0]);
+    
+    y.domain([0, totalNumPeople]);
+    
+    var yAxis = d3.svg
+    .axis()
+    .scale(y)
+    .orient("left")
+    .tickFormat(d3.format("d"));
+    
+    // Adding the label "Count" to the y-axis of the bar graph
+    svg_bar.append("g")
+    .attr("class","y axis")
+    .call(yAxis)
+    .append("text")
+    .attr("transform", "rotate(-90)")
+    .attr("y", 6)
+    .attr("dy", ".71em")
+    .style("text-anchor", "end")
+    .text("Count");
+    
+    // Tip for the hover animation (more information in the styles)
+    var tip = d3.tip()
+    .attr('class', 'd3-tip')
+    .offset([-10, 0])
+    .html(function(d) {
+      if (d==1)
+      {
+        // If one person, it won't be called
+        var pplOrPrsn = " person"
+      } else{
+        var pplOrPrsn = " people"
+      }
+      return d + pplOrPrsn;
+    });
+
+    // Drawing the rectangular bars for the bar graph
+    var bars = svg_bar.selectAll("rect")
+    .data(temp_data)
+    .enter()
+    .append("rect")
+    .attr("class", "bar")
+    .attr("x",function(d, i){return x(temp_x[i])})
+    .attr("y", BarHeight)
+    .attr('fill', function(d, i) {  return color(i); })
+    .attr("width", x.rangeBand())
+    .attr("height", 0)
+    .on('mouseover', tip.show)
+    .on('mouseout', tip.hide);
+
+    // Adding some sexy transitions
+    bars.transition()
+    .duration(600)
+    .delay(500)
+    .attr("y",function(d){return y(d)})
+    .attr("height",function(d){ return BarHeight-y(d);});
+    
+    svg_bar.call(tip);
+
+    function RespondToButton(numClicked)
+    {
+      /* 
+      The function here responds to the button click "Start/Next/Reset"
+      Different distributions will be looked depending on the number of Clicks, 
+      First Gender, then Age and finally Class. 
+      The sidebars were set to hidden or visible depending on the number of times clicked
+      After three clicks, numClicked resets 
+      The variable whichVar is used to drill through the data and find the number of survivors + casualties 
+      */
+      if (numClicked == 1)
+      {
+        var whichVar = "Sex";
+        document.getElementById("NextButton").value = "Next";
+        document.getElementById("GenderBox").style.visibility = "visible";
+        // The following radio buttons need to be hidden if the "Reset" button is pressed
+        document.getElementById("AgeBox").style.visibility = "hidden"; 
+        document.getElementById("PclassBox").style.visibility = "hidden";
+        document.getElementById("Story").innerHTML = "If you were female, your chances of survival was pretty good. Hover over the bars to see how many people survived or passed away. Click on the \"Male\" button on the sidebar to see what happened to men.";
+      } else if (numClicked == 2)
+      {
+        var whichVar = "Age_cat";
+        document.getElementById("GenderBox").style.visibility = "hidden";
+        document.getElementById("AgeBox").style.visibility = "visible";
+        document.getElementById("Story").innerHTML = "If you were young, it was a bit more likely you were going to survive. Noticeably, there were very few children under the age of 16 on the titanic. Hover over to see just how many. Click on the other age groups to better understand their chances.";
+      } else if (numClicked == 3)
+      {
+        var whichVar = "Pclass";
+        document.getElementById("AgeBox").style.visibility = "hidden";
+        document.getElementById("PclassBox").style.visibility = "visible";
+        document.getElementById("Story").innerHTML = "Lastly, individuals that were first class had a relatively good chance at survival. Take a look what happens if you clicked second or third class ticket-holders.";
+      } else if (numClicked > 3)
+      {
+        var whichVar = "Reset";
+        document.getElementById("NextButton").value = "Reset";
+        document.getElementById("GenderBox").style.visibility = "visible";
+        document.getElementById("AgeBox").style.visibility = "visible";
+        document.getElementById("Story").innerHTML = "Now that you have seen what Gender, Age and Class could do, go explore your chances of survial if you were a young first class girl or an old third class man. Hover over to see how many people made it or passed away.";
+      }
+      return whichVar;
+    }
+
+    // The Story will change based on the "NextButton"
+    d3.selectAll("#NextButton").on("click",function(d)
+    {
+      numClicked += 1;
+      var whichVar = RespondToButton(numClicked);
+      if (numClicked > 3)
+      {
+        numClicked = 0; 
+      }
+
+      // Getting the data
+      if (whichVar != "Reset")
+      { 
+        // Only one feature at a time
+        var data_organised = d3.nest()
+        .key(function(d){ return d[whichVar] })
+        .key(function(d){ return d['Survived'] })
+        .rollup(function(leaves){ return leaves.length; })
+        .entries(data);
+        
+        // digSurfaceData only collects the death and survivors from one feature
+        digSurfaceData(whichVar,data_organised);   
+      } 
+      else 
+      {
+        // All three features at once
+        var data_organised = d3.nest()
+        .key(function(d){ return d['Sex'] })
+        .key(function(d){ return d['Age_cat'] })
+        .key(function(d){ return d['Pclass'] })
+        .key(function(d){ return d['Survived'] })
+        .rollup(function(leaves){ return leaves.length; })
+        .entries(data);
+
+        // diggingThroughData collects the death and survivors from all three features
+        diggingThroughData(data_organised);  
+      };
+
+      // When the "Start/Next/Reset button is pressed, the charts need to change accordingly"
+      updatePie(); 
+      updateBars();
+    });
+
+    d3.selectAll(".radio").on("click",function(d)
+    {
+      var whichVar = RespondToButton(numClicked);
+      // Getting the data
+      if (numClicked != 0)
+      {
+        var data_organised = d3.nest()
+        .key(function(d){ return d[whichVar] })
+        .key(function(d){ return d['Survived'] })
+        .rollup(function(leaves){ return leaves.length; })
+        .entries(data);
+
+        digSurfaceData(whichVar,data_organised); 
+
+      } 
+      else if (numClicked == 0) 
+      {
+        var data_organised = d3.nest()
+        .key(function(d){ return d['Sex'] })
+        .key(function(d){ return d['Age_cat'] })
+        .key(function(d){ return d['Pclass'] })
+        .key(function(d){ return d['Survived'] })
+        .rollup(function(leaves){ return leaves.length; })
+        .entries(data);
+
+        diggingThroughData(data_organised);
+      };
+      // When the radio buttons are pressed, the charts need to change accordingly"
+      updatePie();
+      updateBars();
+    });
+
+    function digSurfaceData(whichVar,data_organised)
+    {
+      data_organised.filter(function(lvl1)
+      {
+        if (whichVar == "Sex")
+        {
+          var theSex = d3.select(".GenderBox").select('input[type="radio"]:checked').node().value; 
+
+          if (lvl1.key == theSex)
+          {
+            lvl1.values.filter(function(survivalRates)
+            {
+              if (survivalRates.key == "0")
+              {
+                temp_data[0] = survivalRates.values;
+              } 
+              else if (survivalRates.key=="1")
+              {
+                temp_data[1] = survivalRates.values;
+              };
+            });
+          };
+        } else if (whichVar == "Age_cat")
+        {
+          var theAge = d3.select(".AgeBox").select('input[type="radio"]:checked').node().value; 
+          
+          if (lvl1.key == theAge)
+          {
+            lvl1.values.filter(function(survivalRates)
+            {
+              if (survivalRates.key == "0")
+              {
+                temp_data[0] = survivalRates.values;
+              } 
+              else if (survivalRates.key=="1")
+              {
+                temp_data[1] = survivalRates.values;
+              };
+            });
+          };
+        }
+        else if (whichVar == "Pclass")
+        {
+          var thePclass = d3.select(".PclassBox").select('input[type="radio"]:checked').node().value; 
+          
+          if (lvl1.key == thePclass)
+          {
+            lvl1.values.filter(function(survivalRates)
+            {
+              if (survivalRates.key == "0")
+              {
+                temp_data[0] = survivalRates.values;
+              } 
+              else if (survivalRates.key=="1")
+              {
+                temp_data[1] = survivalRates.values;
+              };
+            });
+          };
+        }
+      });
+    };
+
+    function diggingThroughData(data_organised)
+    {
+      // Digs through the entire dataset 
+      var theAge = d3.select(".AgeBox").select('input[type="radio"]:checked').node().value; 
+      var theSex = d3.select(".GenderBox").select('input[type="radio"]:checked').node().value; 
+      var thePclass = d3.select(".PclassBox").select('input[type="radio"]:checked').node().value; 
+
+      data_organised.filter(function(objLvl_1)
+      {
+        if (objLvl_1.key == theSex)
+        {
+          objLvl_1.values.filter(function(objLvl_2)
+          {
+            if (objLvl_2.key == theAge)
+            {
+              objLvl_2.values.filter(function(objLvl_3)
+              {
+                if (objLvl_3.key == thePclass)
+                {
+                  objLvl_3.values.filter(function(objLvl_4)
+                  {
+                    if (objLvl_4.key == "0")
+                    {
+                      temp_data[0] = objLvl_4.values;
+                    } else if (objLvl_4.key=="1")
+                    {
+                      temp_data[1] = objLvl_4.values;
+                    }
+                  })
+                }
+              })
+            }
+          })
+        }
+      });   
+    };
+
+    function updatePie()
+    {
+      var pie_group = d3.select("body").select("svg"); 
+      pie_group.selectAll('g').remove(); 
+      svg_pie = pie_group.append("g")
+      .attr("transform","translate(" + (margin_pi + (PieWidth / 2)) + "," + (margin_pi + (PieHeight/2)) + ")");
+
+      var arcs = svg_pie
+      .selectAll(".arc")
+      .data(pie(temp_data))
+      .enter()
+      .append("g")
+      .attr("class", "arc");
+
+      var path = arcs.append('path')
+      .attr('fill', function(d, i) {  return color(i); })
+      .attr('d', arc)
+      .transition()
+      .duration(1000)
+      .attrTween("d", function (d) { 
+            var start = {startAngle: 0, endAngle: 0}; 
+            var interpolate = d3.interpolate(start, d);
+            return function (t) {
+                return arc(interpolate(t)); 
+              };
+            });
+      
+      // Adds text to the pie
+      arcs.append("text")
+      .attr("transform", function(d) { 
+        return "translate(" + arc.centroid(d) + ")"; })
+      .text(function(d) { 
+        var tots = d3.sum(temp_data, function(d) { return d; });
+        var percentage =  Math.round((d.value  / tots) * 100, 2);
+        return percentage + "%"; })
+    };
+
+    function updateBars()
+    {
+      // The y-axis will change when the user can choose from multiple features 
+      // It will change back if they pressed the "Reset" button
+      if (numClicked == 0 || numClicked == 1)
+      {
+        if (numClicked == 0)
+        {
+          y.domain([0,100]);
+        } else if (numClicked ==1) 
+        {
+          y.domain([0, totalNumPeople]);
+        };
+
+        // Updating the y-axis for transitions if necessary
+        yAxis.scale(y);
+        var y_Axis = svg_bar.selectAll(".y.axis");
+        y_Axis.transition()
+        .duration(300)
+        .call(yAxis);
+      };
+      
+      // The bars must change AFTER the scales have been redesigned
+      svg_bar.selectAll(".bar")
+      .data(temp_data)
+      .transition()
+      .duration(500)
+      .attr("x",function(d,i){
+        return x(temp_x[i])})
+      .attr("y",function(d){
+        return y(d)
+      })
+      .attr('fill', function(d, i) {  return color(i); })
+      .attr("height", function(d){ return BarHeight - y(d); })
+      .attr("width", x.rangeBand());          
+    }; 
+  };
+
+   </script>
+ </head>
+ <body>
+
+  <div class="ContentBox"> 
+    <div class="PlotBox">
+      <div class="StoryBox"><p id="Story" align="center"></p></div>
+      <div class="PieBox"></div>
+      <div class="BarBox"></div>
+    </div>
+
+    <div id="SideBox" class="SideBox">    
+      <div id="GenderBox" class="GenderBox" style="visibility:hidden">
+        <h4 class="ButtonTitle">Gender</h4>
+        <div><input class="radio" id="female" type="radio" name="gender" value="female" checked>
+          <label for="female">Female</label></div>
+        <div><input class="radio" id="male" type="radio" name="gender" value="male">
+          <label for="male">Male</label></div>
+      </div>
+
+      <div id="AgeBox" class="AgeBox" style="visibility:hidden">
+        <h4 class="ButtonTitle">Age</h4>
+        <div><input class="radio" id="Age_00_16" type="radio" name="Age" value="1" checked>
+          <label for="Age_00_16">0 - 16</label></div>
+        <div><input class="radio" id="Age_16_25" type="radio" name="Age" value="2">
+          <label for="Age_16_25">16 - 25</label></div>
+        <div><input class="radio" id="Age_25_45" type="radio" name="Age" value="3">
+          <label for="Age_25_45">25 - 45</label></div>
+        <div><input class="radio" id="Age_gt_45" type="radio" name="Age" value="4">
+          <label for="Age_gt_45">> 45</label></div>
+      </div>
+
+      <div id="PclassBox" class="PclassBox" style="visibility:hidden">
+        <h4 class="ButtonTitle">Class</h4>
+        <div><input class="radio" id="Class_1" type="radio" name="class" value="1" checked>
+          <label for="Class_1">First</label></div>
+        <div><input class="radio" id="Class_2" type="radio" name="class" value="2">
+          <label for="Class_2">Second</label></div>
+        <div><input class="radio" id="Class_3" type="radio" name="class" value="3">
+          <label for="Class_3">Third</label></div>
+      </div>
+      
+      <div class="NextButtonBox">
+        <div><input class="button" id="NextButton" type="button" value="Start"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="text/javascript">
+    d3.csv("titanic.csv",function(error, data)
+    {
+    //  if (error) throw error;
+      //else
+        init(data)}); 
+  </script>
+  </body>
+</html>
